@@ -65,6 +65,8 @@ After signing in, use **How to use this workspace** in the sidebar or read [the 
 
 For a step-by-step Windows setup on a new laptop, including clean installation, PostgreSQL setup, and restoring an existing database, follow [the new-laptop setup guide](./docs/NEW_LAPTOP_SETUP.md).
 
+For the Prisma migration baseline, safe database copy procedure, and Vercel migration build command, see [the database migration guide](./docs/DATABASE_MIGRATION.md).
+
 ## Routes
 
 | Route | Purpose |
