@@ -1,0 +1,2 @@
+export function Page({ children }: { children: React.ReactNode }) { return <main className="main-content">{children}</main>; }
+export function PageHeading({ eyebrow, title, subtitle, action }: { eyebrow: string; title: string; subtitle: string; action?: React.ReactNode }) { return <div className="heading-row"><div><div className="eyebrow">{eyebrow}</div><h1 className="page-title">{title}</h1><p className="page-subtitle">{subtitle}</p></div>{action}</div>; }

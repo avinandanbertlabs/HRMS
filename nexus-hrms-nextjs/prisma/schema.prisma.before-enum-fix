@@ -1,0 +1,426 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum EmploymentStatus { ACTIVE ON_LEAVE INACTIVE }
+enum LeaveStatus { PENDING APPROVED REJECTED CANCELLED }
+enum AttendanceStatus { PRESENT ABSENT HALF_DAY ON_LEAVE HOLIDAY WEEK_OFF EXCEPTION }
+enum PunchType { CHECK_IN CHECK_OUT }
+enum ApprovalAction { APPROVED REJECTED CLARIFICATION }
+enum ImportStatus { PENDING PROCESSING COMPLETED FAILED }
+model Company {
+  id String @id @default(cuid())
+  name String
+  slug String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  businessUnits BusinessUnit[]
+  departments Department[]
+  teams Team[]
+  designations Designation[]
+  users User[]
+  employees Employee[]
+  leaveTypes LeaveType[]
+  leavePolicies LeavePolicy[]
+  attendancePolicies AttendancePolicy[]
+  holidayCalendars HolidayCalendar[]
+  shifts Shift[]
+  attendanceImports AttendanceImport[]
+  periodLocks AttendancePeriodLock[]
+  auditLogs AuditLog[]
+}
+model BusinessUnit {
+  id String @id @default(cuid())
+  name String
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  departments Department[]
+  createdAt DateTime @default(now())
+  @@unique([companyId, name])
+}
+model Department {
+  id String @id @default(cuid())
+  name String
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  businessUnitId String?
+  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  teams Team[]
+  employees Employee[]
+  createdAt DateTime @default(now())
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+model Team {
+  id String @id @default(cuid())
+  name String
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  departmentId String?
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  employees Employee[]
+  createdAt DateTime @default(now())
+  @@unique([companyId, name])
+  @@index([departmentId])
+}
+model Designation {
+  id String @id @default(cuid())
+  title String
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employees Employee[]
+  @@unique([companyId, title])
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  name String
+  passwordHash String?
+  image String?
+  isActive Boolean @default(true)
+  mfaEnabled Boolean @default(false)
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee Employee?
+  roles UserRole[]
+  accounts Account[]
+  auditLogs AuditLog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([companyId, isActive])
+}
+model Role {
+  id String @id @default(cuid())
+  name String
+  key String @unique
+  description String?
+  permissions RolePermission[]
+  users UserRole[]
+}
+model Permission {
+  id String @id @default(cuid())
+  key String @unique
+  description String?
+  roles RolePermission[]
+}
+model UserRole {
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId String
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  assignedAt DateTime @default(now())
+  assignedById String?
+  @@id([userId, roleId])
+}
+model RolePermission {
+  roleId String
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+}
+model Employee {
+  id String @id @default(cuid())
+  employeeCode String
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  userId String? @unique
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  firstName String
+  lastName String
+  email String
+  workEmail String?
+  phone String?
+  avatarUrl String?
+  status EmploymentStatus @default(ACTIVE)
+  departmentId String?
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  teamId String?
+  team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  designationId String?
+  designation Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  joinedAt DateTime?
+  location String?
+  reportsToId String?
+  reportsTo Employee? @relation("ReportingLine", fields: [reportsToId], references: [id], onDelete: SetNull)
+  directReports Employee[] @relation("ReportingLine")
+  reportingAsEmployee ReportingRelationship[] @relation("ReportingEmployee")
+  reportingAsManager ReportingRelationship[] @relation("ReportingManager")
+  leaveRequests LeaveRequest[]
+  leaveBalances LeaveBalance[]
+  attendanceRecords AttendanceRecord[]
+  punches AttendancePunch[]
+  regularizations RegularizationRequest[]
+  shiftAssignments EmployeeShift[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([companyId, employeeCode])
+  @@index([companyId, status])
+  @@index([departmentId, teamId])
+  @@index([reportsToId])
+}
+model ReportingRelationship {
+  id String @id @default(cuid())
+  employeeId String
+  employee Employee @relation("ReportingEmployee", fields: [employeeId], references: [id], onDelete: Restrict)
+  managerId String
+  manager Employee @relation("ReportingManager", fields: [managerId], references: [id], onDelete: Restrict)
+  relationshipType String @default("PRIMARY")
+  startsAt DateTime
+  endsAt DateTime?
+  delegatedPermissions String[] @default([])
+  createdById String?
+  createdAt DateTime @default(now())
+  @@index([employeeId, startsAt, endsAt])
+  @@index([managerId, startsAt, endsAt])
+}
+model LeaveType {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name String
+  code String
+  paid Boolean @default(true)
+  unit String @default("DAY")
+  active Boolean @default(true)
+  policies LeavePolicy[]
+  requests LeaveRequest[]
+  balances LeaveBalance[]
+  @@unique([companyId, code])
+}
+model LeavePolicy {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  leaveTypeId String
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  name String
+  annualAllowance Decimal @db.Decimal(7, 2)
+  accrualFrequency String @default("ANNUAL")
+  carryForwardLimit Decimal? @db.Decimal(7, 2)
+  allowHalfDay Boolean @default(true)
+  allowNegative Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@index([companyId])
+}
+model LeaveBalance {
+  id String @id @default(cuid())
+  employeeId String
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  leaveTypeId String
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  year Int
+  opening Decimal @default(0) @db.Decimal(7, 2)
+  available Decimal @default(0) @db.Decimal(7, 2)
+  updatedAt DateTime @updatedAt
+  ledger LeaveLedger[]
+  @@unique([employeeId, leaveTypeId, year])
+}
+model LeaveLedger {
+  id String @id @default(cuid())
+  balanceId String
+  balance LeaveBalance @relation(fields: [balanceId], references: [id], onDelete: Restrict)
+  amount Decimal @db.Decimal(7, 2)
+  reason String
+  referenceId String?
+  createdById String?
+  createdAt DateTime @default(now())
+  @@index([balanceId, createdAt])
+}
+model LeaveRequest {
+  id String @id @default(cuid())
+  employeeId String
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  leaveTypeId String
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  startDate DateTime @db.Date
+  endDate DateTime @db.Date
+  units Decimal @db.Decimal(5, 2)
+  reason String
+  status LeaveStatus @default(PENDING)
+  approverId String?
+  comments String?
+  decidedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  approvals LeaveApproval[]
+  @@index([employeeId, startDate, endDate])
+  @@index([status, createdAt])
+}
+model LeaveApproval {
+  id String @id @default(cuid())
+  requestId String
+  request LeaveRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  approverId String
+  action ApprovalAction?
+  comment String?
+  actedAt DateTime?
+  step Int @default(1)
+  @@unique([requestId, step])
+}
+model HolidayCalendar {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name String
+  timezone String @default("Asia/Kolkata")
+  holidays Holiday[]
+}
+model Holiday {
+  id String @id @default(cuid())
+  calendarId String
+  calendar HolidayCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  date DateTime @db.Date
+  name String
+  @@unique([calendarId, date])
+}
+model AttendancePolicy {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name String
+  fullDayMinutes Int @default(480)
+  halfDayMinutes Int @default(240)
+  graceMinutes Int @default(10)
+  breakMinutes Int @default(0)
+  overtimeAfterMinutes Int?
+  active Boolean @default(true)
+}
+model Shift {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name String
+  startTime String
+  endTime String
+  timezone String @default("Asia/Kolkata")
+  crossMidnight Boolean @default(false)
+  breakMinutes Int @default(0)
+  assignments EmployeeShift[]
+}
+model EmployeeShift {
+  id String @id @default(cuid())
+  employeeId String
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  shiftId String
+  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+  startsAt DateTime
+  endsAt DateTime?
+  @@index([employeeId, startsAt, endsAt])
+}
+model AttendancePunch {
+  id String @id @default(cuid())
+  employeeId String
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  type PunchType
+  timestamp DateTime
+  source String @default("WEB")
+  idempotencyKey String?
+  createdAt DateTime @default(now())
+  @@unique([employeeId, idempotencyKey])
+  @@index([employeeId, timestamp])
+}
+model AttendanceRecord {
+  id String @id @default(cuid())
+  employeeId String
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  date DateTime @db.Date
+  checkIn DateTime?
+  checkOut DateTime?
+  workedMinutes Int @default(0)
+  status AttendanceStatus @default(EXCEPTION)
+  source String @default("WEB")
+  isLocked Boolean @default(false)
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([employeeId, date])
+  @@index([date, status])
+}
+model RegularizationRequest {
+  id String @id @default(cuid())
+  employeeId String
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  date DateTime @db.Date
+  requestedCheckIn DateTime?
+  requestedCheckOut DateTime?
+  reason String
+  status LeaveStatus @default(PENDING)
+  reviewerId String?
+  reviewerComment String?
+  decidedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([employeeId, date])
+}
+model AttendanceImport {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  month DateTime @db.Date
+  sourceFilename String
+  checksum String?
+  uploadedById String
+  status ImportStatus @default(PENDING)
+  totalRows Int @default(0)
+  validRows Int @default(0)
+  invalidRows Int @default(0)
+  createdAt DateTime @default(now())
+  rows AttendanceImportRow[]
+  @@index([companyId, month])
+}
+model AttendanceImportRow {
+  id String @id @default(cuid())
+  importId String
+  import AttendanceImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  rowNumber Int
+  employeeCode String?
+  date DateTime?
+  payload Json
+  errors String[] @default([])
+  outcome String @default("PENDING")
+  @@unique([importId, rowNumber])
+}
+model AttendancePeriodLock {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  month DateTime @db.Date
+  lockedAt DateTime @default(now())
+  lockedById String
+  reason String?
+  @@unique([companyId, month])
+}
+model AuditLog {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  actorId String?
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action String
+  entityType String
+  entityId String?
+  metadata Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  @@index([companyId, createdAt])
+  @@index([entityType, entityId])
+}
+model Account {
+  id String @id @default(cuid())
+  userId String
+  provider String
+  providerAccountId String
+  type String
+  access_token String?
+  refresh_token String?
+  expires_at Int?
+  token_type String?
+  scope String?
+  id_token String?
+  session_state String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
