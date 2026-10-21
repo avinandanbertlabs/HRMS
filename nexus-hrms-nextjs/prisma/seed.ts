@@ -14,9 +14,6 @@ const users = [
     email: "vanshiks@bertlabs.invalid",
     password: "7kJM81xwvt9Ogo7DCRwelupn",
   },
-
-  // remaining users...
-
   {
     name: "Bert Labs Administrator",
     email: "bertlabs.admin@bertlabs.invalid",
@@ -29,9 +26,7 @@ async function main() {
     const passwordHash = await bcrypt.hash(user.password, 10);
 
     await prisma.user.upsert({
-      where: {
-        email: user.email,
-      },
+      where: { email: user.email },
       update: {},
       create: {
         name: user.name,
