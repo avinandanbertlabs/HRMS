@@ -67,6 +67,8 @@ For a step-by-step Windows setup on a new laptop, including clean installation, 
 
 For the Prisma migration baseline, safe database copy procedure, and Vercel migration build command, see [the database migration guide](./docs/DATABASE_MIGRATION.md).
 
+For Vercel production environment variables and one-time administrator provisioning, see [the deployment guide](./docs/DEPLOYMENT.md).
+
 ## Routes
 
 | Route | Purpose |
